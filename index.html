@@ -561,7 +561,13 @@ button:active {
   function copyOutput() {
     const text = outputEl.value;
     if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
+    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const html = '<pre style="font-family:\'SF Mono\',\'Cascadia Code\',\'Fira Code\',Consolas,\'Liberation Mono\',monospace;font-size:13px;white-space:pre-wrap;">' + escaped + '</pre>';
+    const item = new ClipboardItem({
+      'text/plain': new Blob([text], { type: 'text/plain' }),
+      'text/html': new Blob([html], { type: 'text/html' }),
+    });
+    navigator.clipboard.write([item]).then(() => {
       copyBtn.textContent = 'Copied!';
       copyBtn.classList.add('copied');
       setTimeout(() => {
