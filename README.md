@@ -32,9 +32,17 @@ Each rule can be toggled on/off. Preferences are saved to localStorage.
 | Fix box-drawing tables | Converts `│`/`─` grid tables to markdown pipe tables |
 | Collapse excess blank lines | Reduces 3+ consecutive blank lines to 1, trims trailing blanks |
 
+## Contributing
+
+Contributions welcome! This is a simple single-file app — fork it, hack on it, send a PR.
+
 ## Technical details
 
 - Single `index.html` — no frameworks, no npm, no build tools
 - All processing is client-side — nothing leaves your browser
 - Works in Chrome, Firefox, Safari
 - Hosted on GitHub Pages
+
+## License
+
+[MIT](LICENSE) — do whatever you want with it.
