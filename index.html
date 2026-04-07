@@ -280,7 +280,7 @@ button:active {
   </label>
   <label class="toggle-item active" data-rule="blanklines">
     <div class="toggle-switch"></div>
-    <span>Collapse excess blank lines</span>
+    <span>Collapse blank lines</span>
   </label>
 </div>
 
@@ -381,8 +381,8 @@ button:active {
   }
 
   function collapseBlankLines(text) {
-    // Collapse 3+ consecutive blank lines to 1
-    text = text.replace(/(\n[ \t]*){3,}\n/g, '\n\n');
+    // Collapse 2+ consecutive blank lines to 1
+    text = text.replace(/(\n[ \t]*){2,}\n/g, '\n\n');
     // Trim trailing blank lines
     text = text.replace(/\n+$/, '\n');
     return text;
