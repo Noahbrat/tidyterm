@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tidyterm — clean up terminal output</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-base: #0d0d1a;
+  --bg-surface: #1a1a2e;
+  --bg-input: #111125;
+  --text: #e0e0e0;
+  --text-muted: #888;
+  --text-dim: #555;
+  --accent: #7c8aff;
+  --accent-hover: #9ba6ff;
+  --border: #2a2a44;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Liberation Mono', monospace;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 16px 24px 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+
+.header .tagline {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Toggles */
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 24px;
+}
+
+.toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-item span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background: var(--border);
+  border-radius: 10px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle-item.active .toggle-switch {
+  background: var(--accent);
+}
+
+.toggle-item.active .toggle-switch::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+/* Panels */
+.panels {
+  display: flex;
+  gap: 12px;
+  padding: 0 24px;
+  flex: 1;
+  min-height: 0;
+}
+
+.panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.panel-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.panel textarea {
+  flex: 1;
+  min-height: 300px;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.panel textarea:focus {
+  border-color: var(--accent);
+}
+
+.panel textarea.output {
+  color: #a8e6a0;
+  cursor: default;
+}
+
+/* Action bar */
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.actions-left, .actions-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.stats {
+  font-size: 12px;
+  color: var(--text-dim);
+  transition: opacity 0.3s;
+  text-align: center;
+  flex: 1;
+}
+
+.stats.flash {
+  opacity: 0;
+}
+
+button {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+.btn-clear {
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.btn-clear:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.btn-copy {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-copy:hover {
+  background: var(--accent-hover);
+}
+
+.btn-copy.copied {
+  background: #34d399;
+}
+
+.shortcut-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: 12px 24px;
+  font-size: 11px;
+}
+
+.footer a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: var(--text-muted);
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .header { padding: 12px 16px 0; }
+  .toggles { padding: 10px 16px; }
+  .panels {
+    flex-direction: column;
+    padding: 0 16px;
+  }
+  .panel textarea { min-height: 200px; }
+  .actions { padding: 10px 16px; }
+  .footer { padding: 10px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>tidyterm</h1>
+  <span class="tagline">clean up terminal output for pasting anywhere</span>
+</div>
+
+<div class="toggles">
+  <label class="toggle-item active" data-rule="whitespace">
+    <div class="toggle-switch"></div>
+    <span>Strip trailing whitespace</span>
+  </label>
+  <label class="toggle-item active" data-rule="dedent">
+    <div class="toggle-switch"></div>
+    <span>Remove leading padding</span>
+  </label>
+  <label class="toggle-item active" data-rule="tables">
+    <div class="toggle-switch"></div>
+    <span>Fix box-drawing tables &rarr; markdown</span>
+  </label>
+  <label class="toggle-item active" data-rule="blanklines">
+    <div class="toggle-switch"></div>
+    <span>Collapse excess blank lines</span>
+  </label>
+</div>
+
+<div class="panels">
+  <div class="panel">
+    <div class="panel-label">Input</div>
+    <textarea id="input" placeholder="Paste terminal output here..." spellcheck="false"></textarea>
+  </div>
+  <div class="panel">
+    <div class="panel-label">Output</div>
+    <textarea id="output" class="output" readonly placeholder="Cleaned output appears here..." spellcheck="false"></textarea>
+  </div>
+</div>
+
+<div class="actions">
+  <div class="actions-left">
+    <button class="btn-clear" id="clearBtn">Clear</button>
+    <span class="shortcut-hint" id="shortcutHint"></span>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="actions-right">
+    <button class="btn-copy" id="copyBtn">Copy</button>
+  </div>
+</div>
+
+<footer class="footer">
+  <a href="https://github.com/noahone/tidyterm" target="_blank" rel="noopener">GitHub</a>
+</footer>
+
+<script>
+(function() {
+  'use strict';
+
+  const inputEl = document.getElementById('input');
+  const outputEl = document.getElementById('output');
+  const statsEl = document.getElementById('stats');
+  const copyBtn = document.getElementById('copyBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const hintEl = document.getElementById('shortcutHint');
+  const toggleItems = document.querySelectorAll('.toggle-item');
+
+  // Show keyboard shortcut hint
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  hintEl.textContent = isMac ? '⌘⇧C to copy' : 'Ctrl+Shift+C to copy';
+
+  // --- Toggle state ---
+  const rules = { whitespace: true, dedent: true, tables: true, blanklines: true };
+
+  // Load from localStorage
+  try {
+    const saved = JSON.parse(localStorage.getItem('tidyterm-rules'));
+    if (saved) Object.assign(rules, saved);
+  } catch(e) {}
+
+  function syncToggles() {
+    toggleItems.forEach(item => {
+      const rule = item.dataset.rule;
+      item.classList.toggle('active', rules[rule]);
+    });
+  }
+
+  syncToggles();
+
+  toggleItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const rule = item.dataset.rule;
+      rules[rule] = !rules[rule];
+      syncToggles();
+      try { localStorage.setItem('tidyterm-rules', JSON.stringify(rules)); } catch(e) {}
+      process();
+    });
+  });
+
+  // --- Cleaning functions ---
+
+  function stripTrailingWhitespace(text) {
+    return text.replace(/[ \t]+$/gm, '');
+  }
+
+  function dedent(text) {
+    const lines = text.split('\n');
+    // Find minimum leading whitespace across non-empty, indented lines.
+    // Skip lines at column 0 (headers, etc.) — they aren't padded.
+    let minIndent = Infinity;
+    for (const line of lines) {
+      if (line.trim().length === 0) continue;
+      const match = line.match(/^[ \t]+/);
+      if (!match) continue; // skip unindented lines
+      if (match[0].length < minIndent) minIndent = match[0].length;
+    }
+    if (minIndent === 0 || minIndent === Infinity) return text;
+    // Only strip if a meaningful portion of lines share this indent
+    const indentedCount = lines.filter(l => l.trim().length > 0 && /^[ \t]/.test(l)).length;
+    const totalContent = lines.filter(l => l.trim().length > 0).length;
+    if (indentedCount < totalContent * 0.5) return text; // less than half indented, skip
+    const re = new RegExp('^[ \\t]{' + minIndent + '}', 'gm');
+    return text.replace(re, '');
+  }
+
+  function collapseBlankLines(text) {
+    // Collapse 3+ consecutive blank lines to 1
+    text = text.replace(/(\n[ \t]*){3,}\n/g, '\n\n');
+    // Trim trailing blank lines
+    text = text.replace(/\n+$/, '\n');
+    return text;
+  }
+
+  // Box-drawing table conversion
+  const BOX_CHARS = '┌┐└┘├┤┬┴┼│─╔╗╚╝╠╣╦╩╬║═';
+  const BOX_RE = new RegExp('[' + BOX_CHARS.replace(/[-\\^\]]/g, '\\$&') + ']');
+  const BOX_LINE_RE = new RegExp('^[' + BOX_CHARS.replace(/[-\\^\]]/g, '\\$&') + '\\s]+$');
+  const SEPARATOR_RE = new RegExp('^[┌┐└┘├┤┬┴┼─╔╗╚╝╠╣╦╩╬═\\s]+$');
+  const DATA_ROW_RE = new RegExp('^\\s*[│║].*[│║]\\s*$');
+
+  function convertBoxTables(text) {
+    const lines = text.split('\n');
+    const result = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      // Look for start of a box-drawing table region
+      if (BOX_RE.test(lines[i]) && (SEPARATOR_RE.test(lines[i]) || DATA_ROW_RE.test(lines[i]))) {
+        // Collect consecutive box-drawing lines
+        const tableStart = i;
+        const tableLines = [];
+        while (i < lines.length && BOX_RE.test(lines[i]) && (SEPARATOR_RE.test(lines[i]) || DATA_ROW_RE.test(lines[i]))) {
+          tableLines.push(lines[i]);
+          i++;
+        }
+
+        // Try to convert to markdown table
+        const markdown = boxToMarkdown(tableLines);
+        if (markdown) {
+          result.push(markdown);
+        } else {
+          // Not a recognizable table — strip box chars
+          tableLines.forEach(line => {
+            result.push(stripBoxChars(line));
+          });
+        }
+      } else {
+        result.push(lines[i]);
+        i++;
+      }
+    }
+
+    return result.join('\n');
+  }
+
+  function boxToMarkdown(tableLines) {
+    // Extract data rows (lines with │ or ║ as delimiters)
+    const dataRows = [];
+    let headerSepIndex = -1;
+
+    for (let i = 0; i < tableLines.length; i++) {
+      const line = tableLines[i];
+      if (DATA_ROW_RE.test(line)) {
+        // Extract cell contents
+        const cells = extractCells(line);
+        if (cells) {
+          dataRows.push({ cells, index: i });
+        }
+      } else if (SEPARATOR_RE.test(line) && dataRows.length === 1 && headerSepIndex === -1) {
+        headerSepIndex = i;
+      }
+    }
+
+    if (dataRows.length < 1) return null;
+
+    // Determine column count from first row
+    const colCount = dataRows[0].cells.length;
+    if (colCount === 0) return null;
+
+    // Check all rows have same column count
+    if (!dataRows.every(r => r.cells.length === colCount)) return null;
+
+    // Calculate max width per column for alignment
+    const colWidths = [];
+    for (let c = 0; c < colCount; c++) {
+      let max = 3; // minimum width for separator dashes
+      for (const row of dataRows) {
+        max = Math.max(max, row.cells[c].length);
+      }
+      colWidths.push(max);
+    }
+
+    function padRow(cells) {
+      return '| ' + cells.map((cell, c) => cell.padEnd(colWidths[c])).join(' | ') + ' |';
+    }
+
+    // Build markdown table
+    const mdLines = [];
+    mdLines.push(padRow(dataRows[0].cells));
+    mdLines.push('| ' + colWidths.map(w => '-'.repeat(w)).join(' | ') + ' |');
+    for (let i = 1; i < dataRows.length; i++) {
+      mdLines.push(padRow(dataRows[i].cells));
+    }
+
+    return mdLines.join('\n');
+  }
+
+  function extractCells(line) {
+    // Remove leading/trailing box characters and split by │ or ║
+    const trimmed = line.replace(/^\s*[│║]/, '').replace(/[│║]\s*$/, '');
+    if (!trimmed) return null;
+    const cells = trimmed.split(/[│║]/).map(c => c.trim());
+    return cells.length > 0 ? cells : null;
+  }
+
+  function stripBoxChars(line) {
+    return line.replace(new RegExp('[' + BOX_CHARS.replace(/[-\\^\]]/g, '\\$&') + ']', 'g'), ' ').replace(/  +/g, ' ').trim();
+  }
+
+  // --- Main process ---
+
+  function process() {
+    let text = inputEl.value;
+    if (!text) {
+      outputEl.value = '';
+      statsEl.textContent = '';
+      return;
+    }
+
+    const originalLen = text.length;
+    const originalLines = text.split('\n').length;
+
+    if (rules.whitespace) text = stripTrailingWhitespace(text);
+    if (rules.dedent) text = dedent(text);
+    if (rules.tables) text = convertBoxTables(text);
+    if (rules.blanklines) text = collapseBlankLines(text);
+
+    outputEl.value = text;
+
+    // Stats
+    const charsRemoved = originalLen - text.length;
+    const linesNow = text.split('\n').length;
+    const linesDiff = originalLines - linesNow;
+
+    const parts = [];
+    if (charsRemoved > 0) {
+      parts.push(charsRemoved.toLocaleString() + ' char' + (charsRemoved !== 1 ? 's' : '') + ' removed');
+    }
+    if (linesDiff > 0) {
+      parts.push(linesDiff + ' line' + (linesDiff !== 1 ? 's' : '') + ' cleaned');
+    }
+
+    if (parts.length > 0) {
+      // Flash animation
+      statsEl.classList.add('flash');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          statsEl.textContent = parts.join(', ');
+          statsEl.classList.remove('flash');
+        });
+      });
+    } else {
+      statsEl.textContent = text ? 'No changes needed' : '';
+    }
+  }
+
+  // --- Event listeners ---
+
+  inputEl.addEventListener('input', process);
+  inputEl.addEventListener('paste', () => {
+    // Process after paste content is inserted
+    setTimeout(process, 0);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    inputEl.value = '';
+    outputEl.value = '';
+    statsEl.textContent = '';
+    inputEl.focus();
+  });
+
+  copyBtn.addEventListener('click', copyOutput);
+
+  function copyOutput() {
+    const text = outputEl.value;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      copyBtn.textContent = 'Copied!';
+      copyBtn.classList.add('copied');
+      setTimeout(() => {
+        copyBtn.textContent = 'Copy';
+        copyBtn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+
+  // Keyboard shortcut: Cmd/Ctrl+Shift+C
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'C') {
+      e.preventDefault();
+      copyOutput();
+    }
+  });
+
+  // Focus input on load
+  inputEl.focus();
+})();
+</script>
+
+</body>
+</html>
