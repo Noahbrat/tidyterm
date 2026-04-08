@@ -367,21 +367,29 @@ button:active {
 
   function dedent(text) {
     const lines = text.split('\n');
-    // Find minimum leading whitespace across non-empty, indented lines.
-    // Skip lines at column 0 (headers, etc.) — they aren't padded.
-    let minIndent = Infinity;
+    // Count how many non-empty lines have each indent level
+    const indentCounts = {};
+    let totalContent = 0;
     for (const line of lines) {
       if (line.trim().length === 0) continue;
+      totalContent++;
       const match = line.match(/^[ \t]+/);
-      if (!match) continue; // skip unindented lines
-      if (match[0].length < minIndent) minIndent = match[0].length;
+      if (!match) continue;
+      const indent = match[0].length;
+      indentCounts[indent] = (indentCounts[indent] || 0) + 1;
     }
-    if (minIndent === 0 || minIndent === Infinity) return text;
+    // Find the most common indent level (the majority)
+    let bestIndent = 0, bestCount = 0;
+    for (const indent in indentCounts) {
+      if (indentCounts[indent] > bestCount) {
+        bestCount = indentCounts[indent];
+        bestIndent = parseInt(indent);
+      }
+    }
+    if (bestIndent === 0) return text;
     // Only strip if a meaningful portion of lines share this indent
-    const indentedCount = lines.filter(l => l.trim().length > 0 && /^[ \t]/.test(l)).length;
-    const totalContent = lines.filter(l => l.trim().length > 0).length;
-    if (indentedCount < totalContent * 0.5) return text; // less than half indented, skip
-    const re = new RegExp('^[ \\t]{' + minIndent + '}', 'gm');
+    if (bestCount < totalContent * 0.3) return text;
+    const re = new RegExp('^[ \\t]{1,' + bestIndent + '}', 'gm');
     return text.replace(re, '');
   }
 
