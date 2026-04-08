@@ -275,6 +275,10 @@ button:active {
     <div class="toggle-switch"></div>
     <span>Remove leading padding</span>
   </label>
+  <label class="toggle-item active" data-rule="unwrap">
+    <div class="toggle-switch"></div>
+    <span>Unwrap hard line breaks</span>
+  </label>
   <label class="toggle-item active" data-rule="tables">
     <div class="toggle-switch"></div>
     <span>Fix box-drawing tables &rarr; markdown</span>
@@ -328,7 +332,7 @@ button:active {
   hintEl.textContent = isMac ? '⌘⇧C to copy' : 'Ctrl+Shift+C to copy';
 
   // --- Toggle state ---
-  const rules = { whitespace: true, dedent: true, tables: true, blanklines: true };
+  const rules = { whitespace: true, dedent: true, unwrap: true, tables: true, blanklines: true };
 
   // Load from localStorage
   try {
@@ -387,6 +391,81 @@ button:active {
     // Trim trailing blank lines
     text = text.replace(/\n+$/, '\n');
     return text;
+  }
+
+  // Detect terminal content width from raw input (before any cleaning).
+  // Lines padded to the same length = terminal width. Subtract common indent
+  // to get the content width that wrapped lines fill.
+  function detectContentWidth(rawText) {
+    const lines = rawText.split('\n');
+    const lengthCounts = {};
+    let nonEmpty = 0;
+    for (const line of lines) {
+      if (line.trim().length === 0) continue;
+      nonEmpty++;
+      const len = line.length;
+      lengthCounts[len] = (lengthCounts[len] || 0) + 1;
+    }
+    let termWidth = 0, maxCount = 0;
+    for (const len in lengthCounts) {
+      if (lengthCounts[len] > maxCount) {
+        maxCount = lengthCounts[len];
+        termWidth = parseInt(len);
+      }
+    }
+    // Need 30%+ of lines at same length to trust it
+    if (maxCount < nonEmpty * 0.3) return 0;
+    // Detect common indent
+    let minIndent = Infinity;
+    for (const line of lines) {
+      if (line.trim().length === 0) continue;
+      const match = line.match(/^[ \t]+/);
+      if (!match) continue;
+      if (match[0].length < minIndent) minIndent = match[0].length;
+    }
+    if (minIndent === Infinity) minIndent = 0;
+    return termWidth - minIndent;
+  }
+
+  // Unwrap hard line breaks (rejoin soft-wrapped paragraphs)
+  const STRUCTURAL_RE = /^(\s*[-*|>#]|\s*\d+[.)]\s|---|\*\*\w)/;
+  const WRAP_MARGIN = 15;
+
+  function unwrapLines(text, contentWidth) {
+    const lines = text.split('\n');
+    const result = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // Blank lines pass through as-is
+      if (line.trim() === '') {
+        result.push(line);
+        i++;
+        continue;
+      }
+
+      // Collect line and any wrapped continuations.
+      // Both structural and non-structural lines can be wrapped —
+      // only join the next line if the current one hit the wrap point
+      // and the next line isn't itself structural (which would be a new item).
+      let para = line;
+      let lastLen = line.length;
+      while (i + 1 < lines.length) {
+        const next = lines[i + 1];
+        if (next.trim() === '' || STRUCTURAL_RE.test(next)) break;
+        if (contentWidth > 0 && lastLen < contentWidth - WRAP_MARGIN) break;
+        if (contentWidth === 0) break;
+        para += ' ' + next.trim();
+        lastLen = next.trim().length;
+        i++;
+      }
+      result.push(para);
+      i++;
+    }
+
+    return result.join('\n');
   }
 
   // Box-drawing table conversion
@@ -507,11 +586,13 @@ button:active {
 
     const originalLen = text.length;
     const originalLines = text.split('\n').length;
+    const contentWidth = detectContentWidth(text); // analyze raw input before cleaning
 
     if (rules.whitespace) text = stripTrailingWhitespace(text);
     if (rules.dedent) text = dedent(text);
     if (rules.tables) text = convertBoxTables(text);
     if (rules.blanklines) text = collapseBlankLines(text);
+    if (rules.unwrap) text = unwrapLines(text, contentWidth);
 
     outputEl.value = text;
 
